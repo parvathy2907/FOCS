@@ -1,0 +1,6 @@
+flask
+cryptography
+pyotp
+qrcode
+werkzeug
+flask-sqlalchemy

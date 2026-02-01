@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-container">
+    <h2 class="auth-header">MFA Verification</h2>
+    <p style="text-align:center; color: var(--text-muted); margin-bottom: 2rem;">
+        Enter the OTP code shown in your console/logs (Simulation).
+    </p>
+    <form method="POST">
+        <div class="form-group">
+            <label for="otp">One-Time Password</label>
+            <input type="text" id="otp" name="otp" required autocomplete="off">
+        </div>
+        <button type="submit" class="btn">Verify</button>
+    </form>
+</div>
+{% endblock %}
