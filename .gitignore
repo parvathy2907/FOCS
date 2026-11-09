@@ -1,0 +1,19 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Secrets & local data — never commit these
+.env
+enc_data/*.key
+instance/
+*.db
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

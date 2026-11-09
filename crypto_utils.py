@@ -1,5 +1,6 @@
 import os
 import hashlib
+import hmac
 import base64
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -12,6 +13,7 @@ KEY_FILE = 'enc_data/master.key'
 
 def get_or_create_key():
     if not os.path.exists(KEY_FILE):
+        os.makedirs(os.path.dirname(KEY_FILE), exist_ok=True)
         key = Fernet.generate_key()
         with open(KEY_FILE, 'wb') as key_file:
             key_file.write(key)
@@ -57,4 +59,4 @@ def hash_password(password: str, salt: str = None) -> (str, str):
 def verify_password(stored_password_hex, stored_salt_hex, provided_password):
     """Verifies a password against the stored hash."""
     hashed, _ = hash_password(provided_password, stored_salt_hex)
-    return hashed == stored_password_hex
+    return hmac.compare_digest(hashed, stored_password_hex)

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response
 from database import db, User, MedicalRecord, AccessLog, Document
 from crypto_utils import hash_password, verify_password, encrypt_data, decrypt_data, hash_data
 import pyotp
@@ -9,8 +9,9 @@ from werkzeug.utils import secure_filename
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'dev-secret-key-change-this-to-something-secure'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hospital_secure.db'
+    app.config['DEMO_MODE'] = os.environ.get('DEMO_MODE', '1') == '1'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -18,11 +19,12 @@ def create_app():
     with app.app_context():
         db.create_all()
         if not User.query.filter_by(username='admin').first():
-             pwd_hash, salt = hash_password('admin123')
+             admin_pwd = os.environ.get('ADMIN_PASSWORD', 'admin123')
+             pwd_hash, salt = hash_password(admin_pwd)
              admin = User(username='admin', password_hash=pwd_hash, salt=salt, role='Admin', totp_secret=pyotp.random_base32())
              db.session.add(admin)
              db.session.commit()
-             print("Admin user created (user: admin, pass: admin123)")
+             print(f"Admin user created (user: admin, pass: {admin_pwd})")
 
     return app
 
@@ -49,7 +51,9 @@ def check_role(allowed_roles):
 
 @app.route('/')
 def home():
-    return render_template('base.html')
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -57,6 +61,10 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         role = request.form.get('role')
+
+        if role not in ('Patient', 'Doctor', 'Admin'):
+            flash('Invalid role selected', 'error')
+            return redirect(url_for('register'))
 
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'error')
@@ -107,7 +115,7 @@ def otp_verify():
     if request.method == 'POST':
         otp_input = request.form.get('otp')
         user_id = session.get('pre_2fa_user_id')
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(otp_input, valid_window=1): 
@@ -126,7 +134,11 @@ def otp_verify():
         else:
             flash('Invalid OTP', 'error')
             
-    return render_template('otp.html')
+    demo_otp = None
+    if app.config['DEMO_MODE']:
+        user = db.session.get(User, session['pre_2fa_user_id'])
+        demo_otp = pyotp.TOTP(user.totp_secret).now()
+    return render_template('otp.html', demo_otp=demo_otp)
 
 @app.route('/dashboard')
 @login_required
@@ -136,8 +148,15 @@ def dashboard():
     records_display = []
     documents = []
 
+    stats = {}
+
     if role == 'Admin':
         logs = AccessLog.query.order_by(AccessLog.timestamp.desc()).all()
+        stats = {
+            'users': User.query.count(),
+            'records': MedicalRecord.query.count(),
+            'logs': len(logs),
+        }
     
     elif role == 'Doctor':
         records = MedicalRecord.query.filter_by(doctor_id=session['user_id']).all()
@@ -146,8 +165,10 @@ def dashboard():
             current_hash = hash_data(decrypted)
             records_display.append({
                 'id': r.id,
+                'patient_id': r.patient_id,
+                'doctor_id': r.doctor_id,
                 'timestamp': r.timestamp,
-                'encrypted_preview': str(r.encrypted_content)[:20],
+                'encrypted_preview': r.encrypted_content.decode()[:32],
                 'decrypted_content': decrypted,
                 'integrity_check': current_hash == r.content_hash
             })
@@ -159,8 +180,10 @@ def dashboard():
             current_hash = hash_data(decrypted)
             records_display.append({
                 'id': r.id,
+                'patient_id': r.patient_id,
+                'doctor_id': r.doctor_id,
                 'timestamp': r.timestamp,
-                'encrypted_preview': str(r.encrypted_content)[:20],
+                'encrypted_preview': r.encrypted_content.decode()[:32],
                 'decrypted_content': decrypted,
                 'integrity_check': current_hash == r.content_hash
             })
@@ -168,7 +191,9 @@ def dashboard():
         # Patients can see their uploads
         documents = Document.query.filter_by(owner_id=session['user_id']).all()
 
-    return render_template('dashboard.html', logs=logs, records=records_display, documents=documents)
+    usernames = {u.id: u.username for u in User.query.all()}
+    return render_template('dashboard.html', logs=logs, records=records_display,
+                           documents=documents, stats=stats, usernames=usernames)
 
 @app.route('/create_record', methods=['POST'])
 @login_required
@@ -225,6 +250,15 @@ def upload_document():
         
         flash('Document uploaded and Base64 encoded successfully!', 'success')
         return redirect(url_for('dashboard'))
+
+@app.route('/document/<int:doc_id>')
+@login_required
+@check_role(['Patient'])
+def download_document(doc_id):
+    doc = Document.query.filter_by(id=doc_id, owner_id=session['user_id']).first_or_404()
+    data = base64.b64decode(doc.base64_content)
+    return Response(data, mimetype='application/octet-stream',
+                    headers={'Content-Disposition': f'attachment; filename={doc.filename}'})
 
 @app.route('/logout')
 def logout():

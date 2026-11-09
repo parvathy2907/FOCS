@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <span class="eyebrow"><span class="dot"></span> Encrypted · Verified · Audited</span>
+    <h1>Hospital records,<br><span class="gradient-text">secured end to end.</span></h1>
+    <p>
+        A role-based medical records system with multi-factor login, encryption at rest,
+        tamper detection and a full audit trail — built to demonstrate core cyber-security principles.
+    </p>
+    <div class="hero-actions">
+        <a href="{{ url_for('register') }}" class="btn btn-auto">{{ icon('user') }} Create an account</a>
+        <a href="{{ url_for('login') }}" class="btn btn-ghost btn-auto">{{ icon('log-in') }} Sign in</a>
+    </div>
+</section>
+
+<div class="container" style="padding-top: 0;">
+    <div class="feature-grid">
+        <div class="feature">
+            <div class="feature-icon">{{ icon('smartphone') }}</div>
+            <h3>Multi-factor authentication</h3>
+            <p>Password plus a time-based one-time code (TOTP) before any session is granted.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon alt">{{ icon('lock') }}</div>
+            <h3>Encryption at rest</h3>
+            <p>Medical notes are encrypted with Fernet before they touch the database.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">{{ icon('hash') }}</div>
+            <h3>Integrity checks</h3>
+            <p>Every record carries a SHA-256 hash, re-verified each time it is opened.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon alt">{{ icon('key') }}</div>
+            <h3>Salted password hashing</h3>
+            <p>PBKDF2-HMAC-SHA256 with 100,000 iterations and a unique salt per user.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">{{ icon('users') }}</div>
+            <h3>Role-based access</h3>
+            <p>Admins, doctors and patients each see only what their role allows.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon alt">{{ icon('activity') }}</div>
+            <h3>Audit logging</h3>
+            <p>Logins and record creation are logged for administrators to review.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

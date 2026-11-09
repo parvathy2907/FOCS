@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Dashboard{% endblock %}
+
+{% macro record_card(r, show_patient=False) %}
+<div class="record">
+    <div class="record-meta">
+        <span>
+            {% if show_patient %}Patient: <strong>{{ usernames.get(r.patient_id, '—') }}</strong>
+            {% else %}Dr. <strong>{{ usernames.get(r.doctor_id, '—') }}</strong>{% endif %}
+            · {{ r.timestamp.strftime('%d %b %Y, %H:%M') if r.timestamp else '' }}
+        </span>
+        {% if r.integrity_check %}
+            <span class="integrity ok">{{ icon('check') }} Integrity verified</span>
+        {% else %}
+            <span class="integrity bad">{{ icon('alert') }} Tampered</span>
+        {% endif %}
+    </div>
+    <p class="record-body">{{ r.decrypted_content }}</p>
+    <div class="cipher" title="Stored ciphertext (preview)">{{ icon('lock') }} {{ r.encrypted_preview }}…</div>
+</div>
+{% endmacro %}
+
+{% block content %}
+{% set role = session['role'] %}
+<div class="container">
+    <div class="dash-header">
+        <div>
+            <h1>Hello, {{ session['username'] }}</h1>
+            <p>
+                {% if role == 'Admin' %}Monitor system activity and access history.
+                {% elif role == 'Doctor' %}Create and review encrypted patient records.
+                {% else %}Your medical records and personal documents.{% endif %}
+            </p>
+        </div>
+        <span class="role-badge role-{{ role }}">
+            {{ icon('crown' if role == 'Admin' else 'stethoscope' if role == 'Doctor' else 'heart') }} {{ role }}
+        </span>
+    </div>
+
+    {# ---------------- ADMIN ---------------- #}
+    {% if role == 'Admin' %}
+    <div class="stat-grid">
+        <div class="card stat"><div class="stat-label">Registered users</div><div class="stat-value">{{ stats.users }}</div></div>
+        <div class="card stat"><div class="stat-label">Encrypted records</div><div class="stat-value">{{ stats.records }}</div></div>
+        <div class="card stat"><div class="stat-label">Audit events</div><div class="stat-value">{{ stats.logs }}</div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">{{ icon('activity') }} Access logs</h2>
+        </div>
+        {% if logs %}
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>User</th><th>Action</th><th>Timestamp</th></tr></thead>
+                <tbody>
+                {% for log in logs %}
+                    <tr>
+                        <td class="mono">{{ log.id }}</td>
+                        <td>{{ usernames.get(log.user_id, 'unknown') }}</td>
+                        <td>{{ log.action }}</td>
+                        <td class="mono">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '' }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">{{ icon('inbox') }}<p>No activity recorded yet.</p></div>
+        {% endif %}
+    </div>
+
+    {# ---------------- DOCTOR ---------------- #}
+    {% elif role == 'Doctor' %}
+    <div class="dash-grid">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">{{ icon('file-plus') }} New record</h2></div>
+            <form method="POST" action="{{ url_for('create_record') }}">
+                <div class="form-group">
+                    <label for="patient_username">Patient username</label>
+                    <input type="text" id="patient_username" name="patient_username" required>
+                </div>
+                <div class="form-group">
+                    <label for="content">Clinical notes</label>
+                    <textarea id="content" name="content" placeholder="Diagnosis, prescriptions, observations…" required></textarea>
+                </div>
+                <button type="submit" class="btn">{{ icon('lock') }} Encrypt &amp; save</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">{{ icon('file') }} Records you created</h2>
+                <span class="mono">{{ records|length }}</span>
+            </div>
+            {% if records %}
+                <div class="record-list">
+                {% for r in records %}{{ record_card(r, show_patient=True) }}{% endfor %}
+                </div>
+            {% else %}
+                <div class="empty">{{ icon('inbox') }}<p>No records yet. Create one to get started.</p></div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ---------------- PATIENT ---------------- #}
+    {% else %}
+    <div class="dash-grid">
+        <div>
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header"><h2 class="card-title">{{ icon('upload') }} Upload document</h2></div>
+                <form method="POST" action="{{ url_for('upload_document') }}" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <input type="file" name="file" required>
+                    </div>
+                    <button type="submit" class="btn">{{ icon('upload') }} Upload</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">{{ icon('file') }} My documents</h2>
+                    <span class="mono">{{ documents|length }}</span>
+                </div>
+                {% if documents %}
+                    {% for d in documents %}
+                    <div class="doc-item">
+                        {{ icon('file') }}
+                        <span class="doc-name">{{ d.filename }}</span>
+                        <a href="{{ url_for('download_document', doc_id=d.id) }}" class="btn btn-ghost btn-sm">{{ icon('download') }}</a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty">{{ icon('inbox') }}<p>No documents uploaded.</p></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">{{ icon('heart') }} My medical records</h2>
+                <span class="mono">{{ records|length }}</span>
+            </div>
+            {% if records %}
+                <div class="record-list">
+                {% for r in records %}{{ record_card(r) }}{% endfor %}
+                </div>
+            {% else %}
+                <div class="empty">{{ icon('inbox') }}<p>Your doctor hasn't added any records yet.</p></div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

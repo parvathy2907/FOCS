@@ -1,17 +1,28 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Verify{% endblock %}
 
 {% block content %}
 <div class="auth-container">
-    <h2 class="auth-header">MFA Verification</h2>
-    <p style="text-align:center; color: var(--text-muted); margin-bottom: 2rem;">
-        Enter the OTP code shown in your console/logs (Simulation).
-    </p>
+    <div class="auth-icon">{{ icon('smartphone') }}</div>
+    <h2 class="auth-header">Two-step verification</h2>
+    <p class="auth-sub">Enter the 6-digit one-time code to continue</p>
+
+    {% if demo_otp %}
+    <div class="demo-hint">
+        <span>Demo mode — current code</span>
+        <code>{{ demo_otp }}</code>
+    </div>
+    {% endif %}
+
     <form method="POST">
         <div class="form-group">
-            <label for="otp">One-Time Password</label>
-            <input type="text" id="otp" name="otp" required autocomplete="off">
+            <label for="otp">One-time password</label>
+            <input type="text" id="otp" name="otp" class="otp-input" inputmode="numeric"
+                   pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autocomplete="one-time-code" autofocus>
         </div>
-        <button type="submit" class="btn">Verify</button>
+        <button type="submit" class="btn">{{ icon('shield') }} Verify &amp; continue</button>
     </form>
+    <p class="auth-footer">The code is also printed in the server console.</p>
 </div>
 {% endblock %}
